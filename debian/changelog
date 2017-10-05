@@ -1,3 +1,9 @@
+ca-table (1.5.2-2) unstable; urgency=medium
+
+  * Add header files again
+
+ -- Charles Samuels <kalle@eventures.vc>  Wed, 05 Oct 2017 10:55:19 +0000
+
 ca-table (1.5.2) unstable; urgency=medium
 
   * Fix uninitialized variable

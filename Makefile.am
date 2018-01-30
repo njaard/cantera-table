@@ -33,7 +33,7 @@ TESTS = $(check_PROGRAMS)
 AM_YFLAGS = -d
 
 ACLOCAL_AMFLAGS = -I m4
-AM_CPPFLAGS = -Isrc $(CAPNP_CFLAGS) $(JSONCPP_CFLAGS) $(ZSTD_CFLAGS)
+AM_CPPFLAGS = -Isrc $(KJ_CFLAGS) $(JSONCPP_CFLAGS) $(ZSTD_CFLAGS)
 AM_LDFLAGS = -lpthread
 
 include third_party/gtest/Makefile.am
@@ -97,7 +97,7 @@ libca_table_la_SOURCES = \
   third_party/oroch/oroch/varint.h \
   third_party/oroch/oroch/zigzag.h
 libca_table_la_LIBADD = \
-  $(CAPNP_LIBS) \
+  $(KJ_LIBS) \
   $(YAML_LIBS) \
   $(ZSTD_LIBS) \
   -lleveldb \
@@ -118,8 +118,6 @@ ca_shell_SOURCES = \
   src/query-lexer.ll
 ca_shell_LDADD = \
   libca-table.la \
-  $(CA_CAS_LIBS) \
-  $(CAPNP_RPC_LIBS) \
   $(JSONCPP_LIBS) \
   -lreadline
 

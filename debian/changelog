@@ -1,3 +1,9 @@
+ca-table (1.5.3ev1) unstable; urgency=medium
+
+  * name-in:... accepts file paths
+
+ -- Charles Samuels <kalle@eventures.vc>  Tue, 30 Jan 2018 15:11:16 +0000
+
 ca-table (1.5.2) unstable; urgency=medium
 
   * Fix uninitialized variable

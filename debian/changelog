@@ -1,3 +1,9 @@
+ca-table (1.5.4ev1) unstable; urgency=medium
+
+  * still use JSON by default
+
+ -- Charles Samuels <kalle@eventures.vc>  Tue, 31 Jan 2018 12:53:50 +0000
+
 ca-table (1.5.3ev1) unstable; urgency=medium
 
   * name-in:... accepts file paths

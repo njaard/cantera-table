@@ -31,8 +31,8 @@
 #include <random>
 #include <set>
 #include <unordered_map>
+#include <fstream>
 
-#include <ca-cas/client.h>
 #include <json/value.h>
 #include <json/writer.h>
 #include <kj/async-io.h>
@@ -55,15 +55,6 @@ using namespace internal;
 namespace {
 
 std::unordered_map<uint64_t, Json::Value> extra_data;
-
-std::unique_ptr<kj::AsyncIoContext> aio_context;
-std::unique_ptr<cantera::CASClient> cas_client;
-
-void CreateCASClient() {
-  // TODO(mortehu): Create this in `main()` instead.
-  aio_context = std::make_unique<kj::AsyncIoContext>(kj::setupAsyncIo());
-  cas_client = std::make_unique<cantera::CASClient>(*aio_context);
-}
 
 std::vector<ca_offset_score> UnionOffsets(
     const std::vector<ca_offset_score>& lhs,
@@ -237,8 +228,15 @@ void LookupIndexKey(
     // TODO(mortehu): Actually make this work with more than one data type.
 
     std::string key = delimiter + 1;
-    if (!cas_client) CreateCASClient();
-    auto data = cas_client->Get(key);
+    std::string data;
+
+    {
+      std::ifstream in(key);
+      in.seekg(0, std::ios::end);
+      data.resize(in.tellg());
+      in.seekg(0, std::ios::beg);
+      in.read(&data[0], data.size());
+    }
 
     std::unordered_map<std::string, std::pair<std::string, std::string>> names;
     auto add_name = [&names](std::string name, const std::string& header,
@@ -789,7 +787,11 @@ void ca_schema_query(Schema* schema,
     }
 
     if (stmt.offset >= offsets.size()) {
-      printf("[]\n");
+      if (CA_output_format == CA_PARAM_VALUE_JSON)
+        printf("[]\n");
+      else
+        printf("0\n");
+
       return;
     }
 
@@ -923,15 +925,27 @@ void ca_schema_query(Schema* schema,
         results[o.second] = std::move(result);
       }
 
-      printf("{\"result-count\":%zu,\"result\":[{", offsets.size());
+      if (CA_output_format == CA_PARAM_VALUE_JSON)
+      {
+        printf("{\"result-count\":%zu,\"result\":[{", offsets.size());
 
-      for (size_t i = 0; i < results.size(); ++i) {
-        if (i > 0) fwrite_unlocked("},\n{", 1, 4, stdout);
+        for (size_t i = 0; i < results.size(); ++i) {
+          if (i > 0) fwrite_unlocked("},\n{", 1, 4, stdout);
 
-        fwrite_unlocked(results[i].data(), 1, results[i].size(), stdout);
+          fwrite_unlocked(results[i].data(), 1, results[i].size(), stdout);
+        }
+
+        printf("}]}\n");
       }
-
-      printf("}]}\n");
+      else
+      {
+        printf("%zu\n", offsets.size());
+        for (size_t i = 0; i < results.size(); ++i) {
+          fwrite_unlocked("{", 1, 1, stdout);
+          fwrite_unlocked(results[i].data(), 1, results[i].size(), stdout);
+          fwrite_unlocked("}\n", 1, 2, stdout);
+        }
+      }
     }
   } catch (kj::Exception e) {
     Json::Value error;

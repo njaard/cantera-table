@@ -787,7 +787,11 @@ void ca_schema_query(Schema* schema,
     }
 
     if (stmt.offset >= offsets.size()) {
-      printf("[]\n");
+      if (CA_output_format == CA_PARAM_VALUE_JSON)
+        printf("[]\n");
+      else
+        printf("0\n");
+
       return;
     }
 
@@ -921,15 +925,27 @@ void ca_schema_query(Schema* schema,
         results[o.second] = std::move(result);
       }
 
-      printf("{\"result-count\":%zu,\"result\":[{", offsets.size());
+      if (CA_output_format == CA_PARAM_VALUE_JSON)
+      {
+        printf("{\"result-count\":%zu,\"result\":[{", offsets.size());
 
-      for (size_t i = 0; i < results.size(); ++i) {
-        if (i > 0) fwrite_unlocked("},\n{", 1, 4, stdout);
+        for (size_t i = 0; i < results.size(); ++i) {
+          if (i > 0) fwrite_unlocked("},\n{", 1, 4, stdout);
 
-        fwrite_unlocked(results[i].data(), 1, results[i].size(), stdout);
+          fwrite_unlocked(results[i].data(), 1, results[i].size(), stdout);
+        }
+
+        printf("}]}\n");
       }
-
-      printf("}]}\n");
+      else
+      {
+        printf("%zu\n", offsets.size());
+        for (size_t i = 0; i < results.size(); ++i) {
+          fwrite_unlocked("{", 1, 1, stdout);
+          fwrite_unlocked(results[i].data(), 1, results[i].size(), stdout);
+          fwrite_unlocked("}\n", 1, 2, stdout);
+        }
+      }
     }
   } catch (kj::Exception e) {
     Json::Value error;

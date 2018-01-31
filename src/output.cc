@@ -29,7 +29,7 @@ namespace cantera {
 namespace table {
 
 char CA_time_format[64];
-enum RuntimeParameterValue CA_output_format = CA_PARAM_VALUE_CSV;
+enum RuntimeParameterValue CA_output_format = CA_PARAM_VALUE_JSON;
 
 void CA_output_char(int ch) { putchar(ch); }
 

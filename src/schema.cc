@@ -23,6 +23,7 @@
 
 #include "src/schema.h"
 
+#include <iostream>
 #include <cassert>
 #include <cctype>
 #include <cerrno>
@@ -37,6 +38,7 @@
 
 #include "src/ca-table.h"
 #include "src/query.h"
+#include "src/thread-pool.h"
 
 namespace cantera {
 namespace table {
@@ -121,10 +123,21 @@ std::vector<std::unique_ptr<Table>>& Schema::IndexTables() {
   Load();
 
   if (index_table_paths_.size() != index_tables_.size()) {
-    for (const auto& path : index_table_paths_) {
-      index_tables_.emplace_back(
-          TableFactory::Open(nullptr, path.c_str()));
+    index_tables_.resize( index_table_paths_.size() );
+
+    internal::ThreadPool pool;
+
+    for (size_t i=0; i < index_table_paths_.size(); i++)
+    {
+      pool.Launch(
+        [&, i=i]
+        {
+          index_tables_[i] =
+            TableFactory::Open(nullptr, index_table_paths_[i].c_str());
+        }
+      );
     }
+    pool.Wait();
   }
 
   return index_tables_;

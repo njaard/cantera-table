@@ -32,6 +32,7 @@
 #include <set>
 #include <unordered_map>
 #include <fstream>
+#include <mutex>
 
 #include <json/value.h>
 #include <json/writer.h>
@@ -42,6 +43,7 @@
 #include "src/keywords.h"
 #include "src/query.h"
 #include "src/util.h"
+#include "src/thread-pool.h"
 
 #if !HAVE_FWRITE_UNLOCKED
 # define fwrite_unlocked fwrite
@@ -194,17 +196,26 @@ void LookupIndexKey(
     std::function<void(std::vector<ca_offset_score>)>&& callback) {
   const auto unescaped_key = DecodeURIComponent(key);
 
+  std::mutex m;
+
+  internal::ThreadPool pool;
   for (size_t i = 0; i < index_tables.size(); ++i) {
-    if (!index_tables[i]->SeekToKey(unescaped_key)) continue;
+    pool.Launch(
+      [&, i=i]
+      {
+        if (!index_tables[i]->SeekToKey(unescaped_key)) return;
 
-    string_view key, data;
-    KJ_REQUIRE(index_tables[i]->ReadRow(key, data));
+        string_view key, data;
+        KJ_REQUIRE(index_tables[i]->ReadRow(key, data));
 
-    std::vector<ca_offset_score> new_offsets;
-    ca_offset_score_parse(data, &new_offsets);
-
-    callback(std::move(new_offsets));
+        std::vector<ca_offset_score> new_offsets;
+        ca_offset_score_parse(data, &new_offsets);
+        std::unique_lock<std::mutex> l(m);
+        callback(std::move(new_offsets));
+      }
+    );
   }
+  pool.Wait();
 }
 
 void LookupIndexKey(

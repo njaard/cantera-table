@@ -45,7 +45,7 @@
 
 #include <kj/debug.h>
 
-#include <zstd.h>
+#include <lz4.h>
 
 #include "src/util.h"
 
@@ -234,49 +234,32 @@ class FileIO {
 
 /*****************************************************************************/
 
-class ZstdCompressor {
+class Lz4Compressor {
  public:
   void Go(DataBuffer& dst, const DataBuffer& src, int level) {
-    size_t size = ZSTD_compressCCtx(context_.get(), dst.data(), dst.capacity(),
-                                    src.data(), src.size(), level);
-    if (ZSTD_isError(size))
-      KJ_FAIL_REQUIRE("compression error", ZSTD_getErrorName(size));
-    dst.resize(size);
+    dst.reserve(LZ4_compressBound(src.size())+4);
+    uint32_t l = src.size();
+    memcpy(dst.data(), &l, 4);
+    const int size = LZ4_compress_default(src.data(), dst.data()+4, src.size(), dst.capacity()-4);
+    if (size < 0)
+      KJ_FAIL_REQUIRE("zstd compression error");
+    dst.resize(size+4);
   }
 
- private:
-  // Compression context.
-  typedef std::unique_ptr<ZSTD_CCtx, decltype(ZSTD_freeCCtx)*> ContextPtr;
-  ContextPtr context_ = ContextPtr(CreateContext(), ZSTD_freeCCtx);
-
-  static ZSTD_CCtx* CreateContext() {
-    ZSTD_CCtx* ctx = ZSTD_createCCtx();
-    if (ctx == NULL) KJ_FAIL_REQUIRE("out of memory");
-    return ctx;
-  }
 };
 
-class ZstdDecompressor {
+class Lz4Decompressor {
  public:
   void Go(DataBuffer& dst, const DataBuffer& src) {
-    size_t size = ZSTD_decompressDCtx(context_.get(), dst.data(),
-                                      dst.capacity(), src.data(), src.size());
-    if (ZSTD_isError(size))
-      KJ_FAIL_REQUIRE("decompression error", ZSTD_getErrorName(size));
-    dst.resize(size);
-  }
-
- private:
-  // Decompression context.
-  using ContextPtr = std::unique_ptr<ZSTD_DCtx, decltype(ZSTD_freeDCtx)*>;
-  ContextPtr context_ = ContextPtr(CreateContext(), ZSTD_freeDCtx);
-
-  static ZSTD_DCtx* CreateContext() {
-    ZSTD_DCtx* ctx = ZSTD_createDCtx();
-    if (ctx == NULL) KJ_FAIL_REQUIRE("out of memory");
-    return ctx;
+    uint32_t l;
+    memcpy(&l, src.data(), 4);
+    dst.resize(l);
+    const int size = LZ4_decompress_fast(src.data()+4, dst.data(), l);
+    if (size < 0)
+      KJ_FAIL_REQUIRE("decompression error");
   }
 };
+
 
 /*****************************************************************************/
 
@@ -729,7 +712,6 @@ class WriteOnceBuilder : private PendingFile, public TableBuilder {
     if (compression_ == TableCompression::kTableCompressionNone)
       return marshal_buffer_;
 
-    compress_buffer_.reserve(ZSTD_compressBound(marshal_buffer_.size()));
     compressor_.Go(compress_buffer_, marshal_buffer_, compression_level_);
 
     // if (compress_buffer_.size() > marshal_buffer_.size())
@@ -753,7 +735,7 @@ class WriteOnceBuilder : private PendingFile, public TableBuilder {
   // A buffer for block compression.
   DataBuffer compress_buffer_;
   // Compression context.
-  ZstdCompressor compressor_;
+  Lz4Compressor compressor_;
 };
 
 /*****************************************************************************/
@@ -1084,8 +1066,6 @@ class WriteOnceTable_v4 final : public WriteOnceTable {
 
     if (!compressed) return read_buffer_;
 
-    size_t decomp_size = ZSTD_getDecompressedSize(read_buffer_.data(), size);
-    decompress_buffer_.resize(decomp_size);
     decompressor_.Go(decompress_buffer_, read_buffer_);
 
     return decompress_buffer_;
@@ -1106,7 +1086,7 @@ class WriteOnceTable_v4 final : public WriteOnceTable {
   DataBuffer read_buffer_;
   DataBuffer decompress_buffer_;
   // Decompression context.
-  ZstdDecompressor decompressor_;
+  Lz4Decompressor decompressor_;
 };
 
 /*****************************************************************************/
@@ -1127,12 +1107,10 @@ class WriteOnceSeekableTable_v4 final : public WriteOnceSeekableTable {
     if (compression == kTableCompressionNone) {
       index_.Unmarshal(read_buffer);
     } else {
-      size = ZSTD_getDecompressedSize(read_buffer.data(), size);
-
       DataBuffer decompress_buffer;
-      decompress_buffer.resize(size);
+      decompress_buffer.reserve(1024*1024*256);
 
-      ZstdDecompressor decompressor;
+      Lz4Decompressor decompressor;
       decompressor.Go(decompress_buffer, read_buffer);
 
       index_.Unmarshal(decompress_buffer);

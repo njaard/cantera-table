@@ -33,7 +33,7 @@ TESTS = $(check_PROGRAMS)
 AM_YFLAGS = -d
 
 ACLOCAL_AMFLAGS = -I m4
-AM_CPPFLAGS = -Isrc $(KJ_CFLAGS) $(JSONCPP_CFLAGS) $(ZSTD_CFLAGS)
+AM_CPPFLAGS = -Isrc $(KJ_CFLAGS) $(JSONCPP_CFLAGS) $(LZ4_CFLAGS)
 AM_LDFLAGS = -lpthread
 
 include third_party/gtest/Makefile.am
@@ -99,7 +99,7 @@ libca_table_la_SOURCES = \
 libca_table_la_LIBADD = \
   $(KJ_LIBS) \
   $(YAML_LIBS) \
-  $(ZSTD_LIBS) \
+  $(LZ4_LIBS) \
   -lleveldb \
   -lre2
 libca_table_la_LDFLAGS = \

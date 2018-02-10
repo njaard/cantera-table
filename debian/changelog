@@ -1,3 +1,10 @@
+ca-table (1.5.5ev1) unstable; urgency=medium
+
+  * use lz4 for compression
+  * multithread in a couple of little places
+
+ -- Charles Samuels <kalle@eventures.vc>  Sat, 10 Feb 2018 09:57:11 +0000
+
 ca-table (1.5.4ev1) unstable; urgency=medium
 
   * still use JSON by default

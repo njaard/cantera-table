@@ -243,6 +243,8 @@ void LookupIndexKey(
 
     {
       std::ifstream in(key);
+      if (!in.is_open())
+        throw std::runtime_error("failed to open file " + key);
       in.seekg(0, std::ios::end);
       data.resize(in.tellg());
       in.seekg(0, std::ios::beg);

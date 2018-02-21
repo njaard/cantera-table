@@ -522,6 +522,8 @@ void ProcessSubQuery(std::vector<ca_offset_score>& offsets, const Query* query,
         } break;
 
         case kOperatorOrderBy: {
+          if (offsets.size() <= 1) break;
+
           std::vector<ca_offset_score> rhs;
           ProcessSubQuery(rhs, query->rhs, schema, make_headers);
 

@@ -75,6 +75,7 @@ Z [zZ]
 {L}{I}{M}{I}{T}                    { character += yyleng; return LIMIT; }
 {M}{A}{X}                          { character += yyleng; return MAX; }
 {M}{I}{N}                          { character += yyleng; return MIN; }
+{M}{O}{D}{I}{D}                    { character += yyleng; return MODID; }
 {N}{E}{X}{T}                       { character += yyleng; return NEXT; }
 {N}{O}{T}                          { character += yyleng; return NOT; }
 {O}{F}{F}{S}{E}{T}                 { character += yyleng; return OFFSET; }

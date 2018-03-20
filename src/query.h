@@ -54,6 +54,7 @@ enum OperatorType {
   kOperatorMax,
   kOperatorMin,
   kOperatorNegate,
+  kOperatorModId,
 };
 
 struct Query {

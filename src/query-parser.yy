@@ -61,7 +61,7 @@ yyerror (YYLTYPE *loc, QueryParseContext *context, const char *message);
 %token OFFSET FETCH FIRST NEXT ROW ROWS ONLY
 %token TRUE FALSE
 %token INTO VALUES ORDER_BY
-%token SELECT MAX MIN RANDOM_SAMPLE
+%token SELECT MAX MIN RANDOM_SAMPLE MODID
 %token SET OUTPUT FORMAT CSV JSON
 %token CORRELATE PARSE
 %token THRESHOLDS FOR
@@ -245,6 +245,16 @@ subQuery
         q->type = kQueryUnaryOperator;
         q->operator_type = kOperatorMin;
         q->lhs = $3;
+        $$ = q;
+      }
+    | MODID '(' subQuery ',' Integer ')'
+      {
+        struct Query *q;
+        ALLOC(q);
+        q->type = kQueryUnaryOperator;
+        q->operator_type = kOperatorModId;
+        q->lhs = $3;
+        q->value = $5;
         $$ = q;
       }
     | RANDOM_SAMPLE '(' subQuery ',' Integer ')'

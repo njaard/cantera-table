@@ -612,6 +612,15 @@ void ProcessSubQuery(std::vector<ca_offset_score>& offsets, const Query* query,
           }
           break;
 
+        case kOperatorModId:
+          for (auto& o : offsets)
+          {
+            // the right-shift is intended to overcome alignment of offsets
+            o.score = uint64_t(o.offset>>9)
+              %uint64_t(query->value);
+          }
+          break;
+
         case kOperatorNegate:
           for (auto& o : offsets) o.score = -o.score;
           break;

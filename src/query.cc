@@ -613,11 +613,25 @@ void ProcessSubQuery(std::vector<ca_offset_score>& offsets, const Query* query,
           break;
 
         case kOperatorModId:
-          for (auto& o : offsets)
+          for (auto& v : offsets)
           {
-            // the right-shift is intended to overcome alignment of offsets
-            o.score = uint64_t(o.offset>>9)
-              %uint64_t(query->value);
+            auto& summary_tables = schema->summary_tables;
+            auto summary_table_idx = summary_tables.size();
+
+            while (--summary_table_idx &&
+                  std::get<uint64_t>(summary_tables[summary_table_idx]) > v.offset)
+              ;
+
+            summary_tables[summary_table_idx].second->Seek(
+                v.offset - std::get<uint64_t>(summary_tables[summary_table_idx]),
+                SEEK_SET);
+
+            string_view row_key, data;
+            KJ_REQUIRE(summary_tables[summary_table_idx].second->ReadRow(
+                row_key, data));
+
+            v.score = uint64_t(std::hash<string_view>()(row_key))
+                  %uint64_t(query->value);
           }
           break;
 

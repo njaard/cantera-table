@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <mutex>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -254,6 +255,8 @@ class Table {
   virtual bool Skip(size_t count) = 0;
 
   const struct stat st;
+
+  std::mutex lock;
 };
 
 class SeekableTable : public Table {

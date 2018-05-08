@@ -57,7 +57,10 @@ auto OpenFileStream(const char* path, const char* mode) {
 
 Schema::~Schema() {}
 
-Schema::Schema(std::string path) : path_(std::move(path)) {}
+Schema::Schema(std::string path) : path_(std::move(path))
+{
+  IndexTables();
+}
 
 void Schema::Load() {
   if (loaded_) return;
@@ -117,6 +120,7 @@ void Schema::Load() {
   }
 
   loaded_ = true;
+
 }
 
 std::vector<std::unique_ptr<Table>>& Schema::IndexTables() {

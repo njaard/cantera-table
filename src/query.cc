@@ -191,34 +191,49 @@ void Join(std::vector<ca_offset_score>& lhs,
 }  // namespace
 
 void LookupIndexKey(
+    internal::ThreadPool& pool,
     const std::vector<std::unique_ptr<Table>>& index_tables,
     const char* key,
     std::function<void(std::vector<ca_offset_score>)>&& callback) {
   const auto unescaped_key = DecodeURIComponent(key);
 
-  std::mutex m;
-
-  internal::ThreadPool pool;
   for (size_t i = 0; i < index_tables.size(); ++i) {
+    Table *index_table = index_tables[i].get();
     pool.Launch(
-      [&, i=i]
+      [=]
       {
-        if (!index_tables[i]->SeekToKey(unescaped_key)) return;
-
-        string_view key, data;
-        KJ_REQUIRE(index_tables[i]->ReadRow(key, data));
-
         std::vector<ca_offset_score> new_offsets;
-        ca_offset_score_parse(data, &new_offsets);
-        std::unique_lock<std::mutex> l(m);
+        {
+          string_view key, data;
+          std::unique_lock<std::mutex> l(index_table->lock);
+          if (!index_table->SeekToKey(unescaped_key)) return;
+
+          KJ_REQUIRE(index_table->ReadRow(key, data));
+
+          ca_offset_score_parse(data, &new_offsets);
+        }
         callback(std::move(new_offsets));
       }
     );
   }
-  pool.Wait();
 }
 
 void LookupIndexKey(
+    const std::vector<std::unique_ptr<Table>>& index_tables,
+    const char* key,
+    std::function<void(std::vector<ca_offset_score>)>&& callback) {
+
+  internal::ThreadPool pool(1);
+
+  LookupIndexKey(
+    pool,
+    index_tables,
+    key,
+    std::move(callback));
+  pool.Wait();
+}
+void LookupIndexKey(
+    const std::unordered_map<std::string, std::vector<ca_offset_score>> &leaf_offset_cache,
     const std::vector<std::unique_ptr<Table>>& index_tables,
     const char* token, bool make_headers,
     std::function<void(std::vector<ca_offset_score>)>&& callback) {
@@ -357,7 +372,8 @@ void LookupIndexKey(
     for (auto offset : offset_buffer) tmp.emplace_back(offset, 0.0f);
     callback(std::move(tmp));
   } else {
-    LookupIndexKey(index_tables, token, std::move(callback));
+    KJ_ASSERT(leaf_offset_cache.count(token)==1);
+    callback(leaf_offset_cache.find(token)->second);
   }
 }
 
@@ -397,8 +413,43 @@ size_t SubtractOffsets(struct ca_offset_score* lhs, size_t lhs_count,
   return o - output;
 }
 
-void ProcessSubQuery(std::vector<ca_offset_score>& offsets, const Query* query,
-                     Schema* schema, bool make_headers) {
+void FillLeafOffsetCache(
+  internal::ThreadPool& pool,
+  std::mutex& map_mutex,
+  std::unordered_map<std::string, std::vector<ca_offset_score>> &leaf_offset_cache,
+  const Query* query,
+  Schema* schema)
+{
+  if (query->type == kQueryLeaf)
+  {
+    std::vector<ca_offset_score> *cached;
+    {
+      std::unique_lock<std::mutex> l(map_mutex);
+      if (leaf_offset_cache.count(query->identifier)==1) return;
+
+      // make sure it exists so multiple threads don't try at once
+      cached = &(leaf_offset_cache[query->identifier] = {});
+    }
+
+    LookupIndexKey(
+      pool,
+      schema->IndexTables(), query->identifier,
+      [=](auto new_offsets) {
+        *cached = std::move(new_offsets);
+      });
+  }
+  else
+  {
+    if (query->rhs)
+      FillLeafOffsetCache(pool, map_mutex, leaf_offset_cache, query->rhs, schema);
+    if (query->lhs)
+      FillLeafOffsetCache(pool, map_mutex, leaf_offset_cache, query->lhs, schema);
+  }
+}
+void ProcessSubQuery(
+  const std::unordered_map<std::string, std::vector<ca_offset_score>> &leaf_offset_cache,
+  std::vector<ca_offset_score>& offsets, const Query* query,
+  Schema* schema, bool make_headers) {
   switch (query->type) {
     case kQueryKey: {
       string_view key(query->identifier);
@@ -413,20 +464,22 @@ void ProcessSubQuery(std::vector<ca_offset_score>& offsets, const Query* query,
 
     case kQueryLeaf:
       LookupIndexKey(
-          schema->IndexTables(), query->identifier, make_headers,
-          [&offsets](auto new_offsets) { offsets = std::move(new_offsets); });
+        leaf_offset_cache,
+        schema->IndexTables(), query->identifier, make_headers,
+        [&offsets](auto new_offsets) { offsets = std::move(new_offsets); }
+      );
       break;
 
     case kQueryBinaryOperator:
-      ProcessSubQuery(offsets, query->lhs, schema, make_headers);
+      ProcessSubQuery(leaf_offset_cache, offsets, query->lhs, schema, make_headers);
 
       switch (query->operator_type) {
         case kOperatorOr: {
           if (offsets.empty()) {
-            ProcessSubQuery(offsets, query->rhs, schema, make_headers);
+            ProcessSubQuery(leaf_offset_cache, offsets, query->rhs, schema, make_headers);
           } else {
             std::vector<ca_offset_score> rhs;
-            ProcessSubQuery(rhs, query->rhs, schema, make_headers);
+            ProcessSubQuery(leaf_offset_cache, rhs, query->rhs, schema, make_headers);
 
             offsets = UnionOffsets(offsets, rhs);
           }
@@ -436,7 +489,7 @@ void ProcessSubQuery(std::vector<ca_offset_score>& offsets, const Query* query,
           if (offsets.empty()) return;
 
           std::vector<ca_offset_score> rhs;
-          ProcessSubQuery(rhs, query->rhs, schema, make_headers);
+          ProcessSubQuery(leaf_offset_cache, rhs, query->rhs, schema, make_headers);
 
           const auto new_size = IntersectOffsets(offsets.data(), offsets.size(),
                                                  rhs.data(), rhs.size());
@@ -447,7 +500,7 @@ void ProcessSubQuery(std::vector<ca_offset_score>& offsets, const Query* query,
           if (offsets.empty()) return;
 
           std::vector<ca_offset_score> rhs;
-          ProcessSubQuery(rhs, query->rhs, schema, make_headers);
+          ProcessSubQuery(leaf_offset_cache, rhs, query->rhs, schema, make_headers);
 
           const auto new_size = SubtractOffsets(
               offsets.data(), offsets.size(), rhs.data(), rhs.size());
@@ -465,7 +518,7 @@ void ProcessSubQuery(std::vector<ca_offset_score>& offsets, const Query* query,
         case kOperatorGT:
           if (query->rhs) {
             std::vector<ca_offset_score> rhs;
-            ProcessSubQuery(rhs, query->rhs, schema, make_headers);
+            ProcessSubQuery(leaf_offset_cache, rhs, query->rhs, schema, make_headers);
 
             Join(offsets, rhs,
                  [](const auto lhs, const auto rhs) { return lhs > rhs; });
@@ -489,7 +542,7 @@ void ProcessSubQuery(std::vector<ca_offset_score>& offsets, const Query* query,
         case kOperatorLT:
           if (query->rhs) {
             std::vector<ca_offset_score> rhs;
-            ProcessSubQuery(rhs, query->rhs, schema, make_headers);
+            ProcessSubQuery(leaf_offset_cache, rhs, query->rhs, schema, make_headers);
 
             Join(offsets, rhs,
                  [](const auto lhs, const auto rhs) { return lhs < rhs; });
@@ -525,7 +578,7 @@ void ProcessSubQuery(std::vector<ca_offset_score>& offsets, const Query* query,
           if (offsets.size() <= 1) break;
 
           std::vector<ca_offset_score> rhs;
-          ProcessSubQuery(rhs, query->rhs, schema, make_headers);
+          ProcessSubQuery(leaf_offset_cache, rhs, query->rhs, schema, make_headers);
 
           auto l = offsets.begin();
           auto r = rhs.begin();
@@ -579,7 +632,7 @@ void ProcessSubQuery(std::vector<ca_offset_score>& offsets, const Query* query,
       break;
 
     case kQueryUnaryOperator:
-      ProcessSubQuery(offsets, query->lhs, schema, make_headers);
+      ProcessSubQuery(leaf_offset_cache, offsets, query->lhs, schema, make_headers);
 
       switch (query->operator_type) {
         case kOperatorMax:
@@ -652,7 +705,18 @@ void ProcessSubQuery(std::vector<ca_offset_score>& offsets, const Query* query,
 
 void ProcessQuery(std::vector<ca_offset_score>& offsets, const Query* query,
                   Schema* schema, bool make_headers, bool use_max) {
-  ProcessSubQuery(offsets, query, schema, make_headers);
+
+  std::unordered_map<std::string, std::vector<ca_offset_score>> leaf_offset_cache;
+
+  {
+    internal::ThreadPool pool;
+    std::mutex map_mutex;
+
+    FillLeafOffsetCache(pool, map_mutex, leaf_offset_cache, query, schema);
+    pool.Wait();
+  }
+
+  ProcessSubQuery(leaf_offset_cache, offsets, query, schema, make_headers);
   RemoveDuplicates(offsets, use_max);
 }
 

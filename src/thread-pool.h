@@ -164,7 +164,7 @@ class ThreadPool {
 
   // The maximum number of queued tasks, before we start running tasks in the
   // calling thread.
-  size_t max_backlog_;
+  size_t max_backlog_ = std::numeric_limits<size_t>::max();
 
   std::vector<std::thread> threads_;
 

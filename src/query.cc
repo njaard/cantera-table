@@ -720,14 +720,35 @@ void ProcessQuery(std::vector<ca_offset_score>& offsets, const Query* query,
   RemoveDuplicates(offsets, use_max);
 }
 
-void PrintQuery(const Query* query) {
+void PrintQuery(const Query* query, bool inop) {
   switch (query->type) {
     case kQueryKey:
-      printf("KEY=%s", query->identifier);
+      printf("key:\"%s\"", query->identifier);
       break;
 
     case kQueryLeaf:
-      printf("%s", query->identifier);
+      if (std::strncmp(query->identifier, "site:", 5)==0)
+      {
+        printf("%s", query->identifier);
+      }
+      else if (std::strncmp(query->identifier, "word", 4)==0)
+      {
+        printf("%s", query->identifier);
+      }
+      else
+      {
+        if (!inop)
+          printf("_exists_:");
+        const std::string id(query->identifier);
+        for (char c : id)
+        {
+          if (c == ':') printf("\\");
+          else if (c == '-') printf("\\");
+          else if (c == ' ') printf("\\");
+          else if (c == '.') { printf("_"); continue; }
+          printf("%c", c);
+        }
+      }
       break;
 
     case kQueryUnaryOperator:
@@ -748,6 +769,12 @@ void PrintQuery(const Query* query) {
           printf(")");
           break;
 
+        case kOperatorModId:
+          printf("(");
+          PrintQuery(query->lhs);
+          printf(")");
+          break;
+
         default:
           KJ_FAIL_ASSERT("invalid operator", query->operator_type);
       }
@@ -760,53 +787,69 @@ void PrintQuery(const Query* query) {
         printf(", %.9g)", query->value);
         break;
       }
+      if (query->lhs->type == kQueryUnaryOperator
+        and query->lhs->operator_type == kOperatorModId)
+      {
+        PrintQuery(query->lhs, true);
+        break;
+      }
 
       printf("(");
-      PrintQuery(query->lhs);
       bool scalar_rhs = false;
       bool range_rhs = false;
       switch (query->operator_type) {
         case kOperatorOr:
-          printf(" + ");
+          PrintQuery(query->lhs, false);
+          printf(" OR ");
           break;
         case kOperatorAnd:
+          PrintQuery(query->lhs, false);
           printf(" AND ");
           break;
         case kOperatorSubtract:
-          printf(" - ");
+          PrintQuery(query->lhs, false);
+          printf(" AND NOT ");
           break;
         case kOperatorEQ:
-          printf("=");
+          PrintQuery(query->lhs, true);
+          printf(":=");
           if (!query->rhs) scalar_rhs = true;
           break;
         case kOperatorGT:
-          printf(">");
+          PrintQuery(query->lhs, true);
+          printf(":>");
           if (!query->rhs) scalar_rhs = true;
           break;
         case kOperatorGE:
-          printf(">=");
+          PrintQuery(query->lhs, true);
+          printf(":>=");
           if (!query->rhs) scalar_rhs = true;
           break;
         case kOperatorLT:
-          printf("<");
+          PrintQuery(query->lhs, true);
+          printf(":<");
           if (!query->rhs) scalar_rhs = true;
           break;
         case kOperatorLE:
-          printf("<=");
+          PrintQuery(query->lhs, true);
+          printf(":<=");
           if (!query->rhs) scalar_rhs = true;
           break;
         case kOperatorInRange:
+          PrintQuery(query->lhs, true);
           range_rhs = true;
           break;
         case kOperatorOrderBy:
+          PrintQuery(query->lhs, false);
           printf(" ORDER BY ");
           break;
 
         default:
           KJ_FAIL_ASSERT("invalid operator", query->operator_type);
       }
+
       if (range_rhs)
-        printf("[%.9g,%.9g]", query->value, query->value2);
+        printf(":[%.9g TO %.9g]", query->value, query->value2);
       else if (scalar_rhs)
         printf("%.9g", query->value);
       else

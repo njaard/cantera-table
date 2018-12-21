@@ -300,17 +300,14 @@ void parse_data(const char* begin, const char* end, parse_state& state) {
 
             if (!(end = strptime(offset.c_str(), date_format, &tm)))
               errx(EX_DATAERR,
-                   "Unable to parse date '%s' according to format '%s'",
-                   offset.c_str(), date_format);
+                   "Unable to parse date '%s' according to format '%s' (key='%s')",
+                   offset.c_str(), date_format, current_key.c_str());
 
             if (*end)
-              errx(EX_DATAERR, "Junk at end of offset '%s': %s", offset.c_str(),
-                   end);
+              errx(EX_DATAERR, "Junk at end of offset '%s': %s (key='%s')", offset.c_str(),
+                   end, current_key.c_str());
 
             current_offset = timegm(&tm);
-
-            if (!current_offset)
-              fprintf(stderr, "Warning: %s maps to 1970-01-01\n", date_format);
           }
 
           offset.clear();

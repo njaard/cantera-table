@@ -119,6 +119,7 @@ ca_shell_SOURCES = \
 ca_shell_LDADD = \
   libca-table.la \
   $(JSONCPP_LIBS) \
+  -lkj-async \
   -lreadline
 
 ca_load_SOURCES = \

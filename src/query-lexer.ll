@@ -118,7 +118,7 @@ static void comment(yyscan_t yyscanner) {
   struct yyguts_t* yyg = (struct yyguts_t*)yyscanner;
   int c, last = -1;
 
-  while (EOF != (c = yyinput(yyscanner))) {
+  while (0 != (c = yyinput(yyscanner))) {
     ++character;
 
     if (last == '*' && c == '/') return;
@@ -141,7 +141,7 @@ static int stringliteral(yyscan_t yyscanner) {
 
   quote_char = yytext[0];
 
-  while (EOF != (ch = yyinput(yyscanner))) {
+  while (0 != (ch = yyinput(yyscanner))) {
     ++character;
 
     if (ch == quote_char) {

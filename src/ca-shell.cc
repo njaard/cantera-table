@@ -144,8 +144,6 @@ int main(int argc, char** argv) try {
     errx(EX_USAGE, "Usage: %s [OPTION]... [SCHEMA]", argv[0]);
   }
 
-  context.schema = std::make_unique<ca_table::Schema>(schema_path);
-
   if (command) {
     KJ_CONTEXT(command);
 

@@ -735,6 +735,28 @@ void PrintQuery(const Query* query, bool inop) {
       {
         printf("%s", query->identifier);
       }
+      else if (std::strncmp(query->identifier, "in-", 3)==0)
+      {
+        auto delimiter = strchr(query->identifier + 3, ':');
+        if (!delimiter) return;
+        std::string key(query->identifier + 3, delimiter - (query->identifier + 3));
+        string_view parameter(delimiter + 1);
+        printf("%s:/.*", key.c_str());
+        for (char c : parameter)
+        {
+          if (c == '/') printf("\\/");
+          else if (c == '.') printf("\\.");
+          else if (c == '[') printf("\\[");
+          else if (c == ']') printf("\\]");
+          else if (c == '{') printf("\\{");
+          else if (c == '}') printf("\\}");
+          else if (c == '|') printf("\\|");
+          else if (c == '*') printf("\\*");
+          else if (c == '+') printf("\\+");
+          else printf("%c", c);
+        }
+        printf(".*/");
+      }
       else
       {
         if (!inop)

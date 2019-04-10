@@ -757,6 +757,18 @@ void PrintQuery(const Query* query, bool inop) {
         }
         printf(".*/");
       }
+      else if (std::strncmp(query->identifier, "external-script:", 16)==0)
+      {
+        printf("external\\-script:\"");
+        string_view parameter(query->identifier + 16);
+        for (char c : parameter)
+        {
+          if (c == '\\') printf("\\\\");
+          else if (c == '"') printf("\\\"");
+          else printf("%c", c);
+        }
+        printf("\"");
+      }
       else
       {
         if (!inop)

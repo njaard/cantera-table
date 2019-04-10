@@ -24,10 +24,12 @@ void CA_process_statement(QueryParseContext* context, Statement* stmt) {
       break;
 
     case kStatementParse:
-      PrintQuery(stmt->u.parse.query);
+    {
+      bool a=false;
+      PrintQuery(stmt->u.parse.query, false, &a);
       printf("\n");
       break;
-
+    }
     case kStatementSelect:
       Select(context->schema.get(), stmt->u.select);
       break;

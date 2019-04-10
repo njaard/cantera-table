@@ -40,7 +40,7 @@ void ProcessQuery(std::vector<ca_offset_score>& offsets, const Query* query,
                   Schema* schema, bool make_headers = false,
                   bool use_max = true);
 
-void PrintQuery(const Query* query, bool inop=false);
+void PrintQuery(const Query* query, bool inop, bool *epochdays_to_ds);
 
 // Removes from `lhs' every offset contained `rhs', including duplicates.
 // Returns the number of elements left in `rhs'.

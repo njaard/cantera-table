@@ -720,8 +720,21 @@ void ProcessQuery(std::vector<ca_offset_score>& offsets, const Query* query,
   RemoveDuplicates(offsets, use_max);
 }
 
-void PrintQuery(const Query* query, bool inop) {
-  switch (query->type) {
+static std::string format_epochdays(double d)
+{
+  std::string f("____-__-__");
+  time_t in = time_t(d * 86400.0);
+  tm out;
+  gmtime_r(&in, &out);
+  strftime(&f[0], f.size()+1, "%Y-%m-%d", &out);
+  return f;
+}
+
+
+void PrintQuery(const Query* query, bool inop, bool *epochdays_to_ds)
+{
+  switch (query->type)
+  {
     case kQueryKey:
       printf("key:\"%s\"", query->identifier);
       break;
@@ -774,13 +787,26 @@ void PrintQuery(const Query* query, bool inop) {
         if (!inop)
           printf("_exists_:");
         const std::string id(query->identifier);
-        for (char c : id)
+        if (id == "streak-first-touchpoint")
         {
-          if (c == ':') printf("\\");
-          else if (c == '-') printf("\\");
-          else if (c == ' ') printf("\\");
-          else if (c == '.') { printf("_"); continue; }
-          printf("%c", c);
+          printf("x_streak_first_touchpoint");
+          *epochdays_to_ds = true;
+        }
+        else if (id == "streak-last-touchpoint")
+        {
+          printf("x_streak_last_touchpoint");
+          *epochdays_to_ds = true;
+        }
+        else
+        {
+          for (char c : id)
+          {
+            if (c == ':') printf("\\");
+            else if (c == '-') printf("\\");
+            else if (c == ' ') printf("\\");
+            else if (c == '.') { printf("_"); continue; }
+            printf("%c", c);
+          }
         }
       }
       break;
@@ -789,23 +815,23 @@ void PrintQuery(const Query* query, bool inop) {
       switch (query->operator_type) {
         case kOperatorMax:
           printf("MAX(");
-          PrintQuery(query->lhs);
+          PrintQuery(query->lhs, false, epochdays_to_ds);
           break;
 
         case kOperatorMin:
           printf("MIN(");
-          PrintQuery(query->lhs);
+          PrintQuery(query->lhs, false, epochdays_to_ds);
           break;
 
         case kOperatorNegate:
           printf("~(");
-          PrintQuery(query->lhs);
+          PrintQuery(query->lhs, false, epochdays_to_ds);
           printf(")");
           break;
 
         case kOperatorModId:
           printf("(");
-          PrintQuery(query->lhs);
+          PrintQuery(query->lhs, false, epochdays_to_ds);
           printf(")");
           break;
 
@@ -817,14 +843,14 @@ void PrintQuery(const Query* query, bool inop) {
     case kQueryBinaryOperator:
       if (query->operator_type == kOperatorRandomSample) {
         printf("RANDOM_SAMPLE(");
-        PrintQuery(query->lhs);
+        PrintQuery(query->lhs, false, epochdays_to_ds);
         printf(", %.9g)", query->value);
         break;
       }
       if (query->lhs->type == kQueryUnaryOperator
         and query->lhs->operator_type == kOperatorModId)
       {
-        PrintQuery(query->lhs, true);
+        PrintQuery(query->lhs, true, epochdays_to_ds);
         break;
       }
 
@@ -833,48 +859,48 @@ void PrintQuery(const Query* query, bool inop) {
       bool range_rhs = false;
       switch (query->operator_type) {
         case kOperatorOr:
-          PrintQuery(query->lhs, false);
+          PrintQuery(query->lhs, false, epochdays_to_ds);
           printf(" OR ");
           break;
         case kOperatorAnd:
-          PrintQuery(query->lhs, false);
+          PrintQuery(query->lhs, false, epochdays_to_ds);
           printf(" AND ");
           break;
         case kOperatorSubtract:
-          PrintQuery(query->lhs, false);
+          PrintQuery(query->lhs, false, epochdays_to_ds);
           printf(" AND NOT ");
           break;
         case kOperatorEQ:
-          PrintQuery(query->lhs, true);
+          PrintQuery(query->lhs, true, epochdays_to_ds);
           printf(":=");
           if (!query->rhs) scalar_rhs = true;
           break;
         case kOperatorGT:
-          PrintQuery(query->lhs, true);
+          PrintQuery(query->lhs, true, epochdays_to_ds);
           printf(":>");
           if (!query->rhs) scalar_rhs = true;
           break;
         case kOperatorGE:
-          PrintQuery(query->lhs, true);
+          PrintQuery(query->lhs, true, epochdays_to_ds);
           printf(":>=");
           if (!query->rhs) scalar_rhs = true;
           break;
         case kOperatorLT:
-          PrintQuery(query->lhs, true);
+          PrintQuery(query->lhs, true, epochdays_to_ds);
           printf(":<");
           if (!query->rhs) scalar_rhs = true;
           break;
         case kOperatorLE:
-          PrintQuery(query->lhs, true);
+          PrintQuery(query->lhs, true, epochdays_to_ds);
           printf(":<=");
           if (!query->rhs) scalar_rhs = true;
           break;
         case kOperatorInRange:
-          PrintQuery(query->lhs, true);
+          PrintQuery(query->lhs, true, epochdays_to_ds);
           range_rhs = true;
           break;
         case kOperatorOrderBy:
-          PrintQuery(query->lhs, false);
+          PrintQuery(query->lhs, false, epochdays_to_ds);
           printf(" ORDER BY ");
           break;
 
@@ -882,12 +908,36 @@ void PrintQuery(const Query* query, bool inop) {
           KJ_FAIL_ASSERT("invalid operator", query->operator_type);
       }
 
-      if (range_rhs)
-        printf(":[%.9g TO %.9g]", query->value, query->value2);
-      else if (scalar_rhs)
-        printf("%.9g", query->value);
+      if (*epochdays_to_ds)
+      {
+        if (range_rhs)
+        {
+          printf(
+            "[%s TO %s]",
+            format_epochdays(query->value).c_str(),
+            format_epochdays(query->value2).c_str()
+          );
+        }
+        else if (scalar_rhs)
+        {
+          printf(
+            "%s",
+            format_epochdays(query->value).c_str()
+          );
+        }
+        else
+          PrintQuery(query->rhs, false, epochdays_to_ds);
+        *epochdays_to_ds = false;
+      }
       else
-        PrintQuery(query->rhs);
+      {
+        if (range_rhs)
+          printf("[%.9g TO %.9g]", query->value, query->value2);
+        else if (scalar_rhs)
+          printf("%.9g", query->value);
+        else
+          PrintQuery(query->rhs, false, epochdays_to_ds);
+      }
       printf(")");
       break;
   }

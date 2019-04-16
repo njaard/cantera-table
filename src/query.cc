@@ -913,7 +913,7 @@ void PrintQuery(const Query* query, bool inop, bool *epochdays_to_ds)
         if (range_rhs)
         {
           printf(
-            "[%s TO %s]",
+            ":[%s TO %s]",
             format_epochdays(query->value).c_str(),
             format_epochdays(query->value2).c_str()
           );
@@ -932,7 +932,7 @@ void PrintQuery(const Query* query, bool inop, bool *epochdays_to_ds)
       else
       {
         if (range_rhs)
-          printf("[%.9g TO %.9g]", query->value, query->value2);
+          printf(":[%.9g TO %.9g]", query->value, query->value2);
         else if (scalar_rhs)
           printf("%.9g", query->value);
         else

@@ -67,6 +67,7 @@ yyerror (YYLTYPE *loc, QueryParseContext *context, const char *message);
 %token THRESHOLDS FOR
 
 %token Date
+%token Duration
 %token Identifier
 %token Integer
 %token Numeric
@@ -82,7 +83,7 @@ yyerror (YYLTYPE *loc, QueryParseContext *context, const char *message);
 %type<statement> statement
 %type<threshold_clause> thresholdClause
 
-%type<l> Integer
+%type<l> Integer Duration
 %type<l> fetchClause
 %type<l> keysClause
 %type<l> offsetClause
@@ -196,7 +197,12 @@ statement
     ;
 
 number
-    : Integer { $$ = $1; }
+    : Duration
+      {
+        const time_t t = time(nullptr) + $1;
+        $$ = t / 86400;
+      }
+    | Integer { $$ = $1; }
     | Numeric { $$ = strtod($1, NULL); }
     | Date
       {

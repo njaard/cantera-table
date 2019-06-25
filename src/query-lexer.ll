@@ -98,6 +98,15 @@ Z [zZ]
 {V}{A}{L}{U}{E}{S}                 { character += yyleng; return VALUES; }
 {W}{I}{T}{H}                       { character += yyleng; return WITH; }
 
+[-+][0-9]+[dw]  {
+  char *end;
+  yylval->l = strtol(yytext, &end, 10);
+  if (*end == 'w') yylval->l *= 7 * 86400;
+  else if (*end == 'd') yylval->l *= 86400;
+  character += yyleng;
+  return Duration;
+}
+
 0x[A-Fa-f0-9]*      { yylval->l = strtol (yytext + 2, 0, 16); character += yyleng; return Integer; }
 [1-9][0-9]*-[01][0-9]-[0123][0-9] { yylval->c = yyextra->copyString(kj::StringPtr(yytext, yyleng)).cStr(); character += yyleng; return Date; }
 -?[0-9]+            { yylval->l = strtol (yytext, 0, 0); character += yyleng; return Integer; }

@@ -7,9 +7,9 @@
 #include <kj/exception.h>
 
 using namespace cantera::table;
+static constexpr char name_template[] = "/tmp/ca-table-test-XXXXXX";
 
 struct LevelDBTest : testing::Test {
-  static constexpr char name_template[] = "/tmp/ca-table-test-XXXXXX";
 
  public:
   void SetUp() override {

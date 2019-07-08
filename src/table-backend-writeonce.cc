@@ -643,7 +643,7 @@ class WriteOnceBuilder : private PendingFile, public TableBuilder {
 
   void InsertRow(const string_view& key, const string_view& value) override {
     KJ_REQUIRE(block_.empty() || block_.GetLaskKey() < key,
-               "unsorted input data");
+               "unsorted input data " + block_.GetLaskKey().to_string() + " >= " + key.to_string());
 
     const size_t size = key.size() + value.size();
     const size_t block_size = block_.EstimateSize();

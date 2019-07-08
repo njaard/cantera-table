@@ -118,8 +118,7 @@ ca_shell_SOURCES = \
   src/query-lexer.ll
 ca_shell_LDADD = \
   libca-table.la \
-  $(JSONCPP_LIBS) \
-  -lkj-async \
+  $(JSONCPP_LIBS) $(KJ_LIBS) $(KJASYNC_LIBS) \
   -lreadline
 
 ca_load_SOURCES = \

@@ -9,9 +9,9 @@
 #include "third_party/gtest/gtest.h"
 
 using namespace cantera::table;
+static constexpr char name_template[] = "/tmp/ca-table-test-XXXXXX";
 
 struct CaLoadTest : testing::Test {
-  static constexpr char name_template[] = "/tmp/ca-table-test-XXXXXX";
 
  public:
   void SetUp() override {

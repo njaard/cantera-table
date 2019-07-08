@@ -167,7 +167,7 @@ void DumpTimeSeries() {
       if (!strcmp(date_format, "%s")) {
         for (size_t i = 0; i < offsets.size(); ++i) {
           if (offsets[i].HasPercentiles()) {
-            printf("%.*s\t%s\t%.9g %.9g %.9g %.9g %.9g\n",
+            printf("%.*s\t%llu\t%.9g %.9g %.9g %.9g %.9g\n",
                    static_cast<int>(key.size()), key.data(),
                    (long long unsigned)offsets[i].offset,
                    offsets[i].score, offsets[i].score_pct5,
@@ -227,7 +227,7 @@ int main(int argc, char** argv) try {
 
   setenv("TZ", "", 1);
 
-  while ((i = getopt_long(argc, argv, "", kLongOptions, 0)) != -1) {
+  while ((i = getopt_long(argc, argv, "O:", kLongOptions, 0)) != -1) {
     switch (i) {
       case 0:
         break;

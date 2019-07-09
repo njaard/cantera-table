@@ -23,6 +23,8 @@ comment(yyscan_t yyscanner);
 static int
 stringliteral(yyscan_t yyscanner);
 %}
+
+%x NO_IDENTIFIERS
 %option extra-type="kj::Arena*"
 %option reentrant
 %option noyywrap
@@ -98,7 +100,7 @@ Z [zZ]
 {V}{A}{L}{U}{E}{S}                 { character += yyleng; return VALUES; }
 {W}{I}{T}{H}                       { character += yyleng; return WITH; }
 
-[-+][0-9]+[dw]  {
+<INITIAL,NO_IDENTIFIERS>[-+][0-9]+[dw]  {
   char *end;
   yylval->l = strtol(yytext, &end, 10);
   if (*end == 'w') yylval->l *= 7 * 86400;
@@ -107,18 +109,34 @@ Z [zZ]
   return Duration;
 }
 
-0x[A-Fa-f0-9]*      { yylval->l = strtol (yytext + 2, 0, 16); character += yyleng; return Integer; }
-[1-9][0-9]*-[01][0-9]-[0123][0-9] { yylval->c = yyextra->copyString(kj::StringPtr(yytext, yyleng)).cStr(); character += yyleng; return Date; }
--?[0-9]+            { yylval->l = strtol (yytext, 0, 0); character += yyleng; return Integer; }
--?[0-9]+\.[0-9]+    { yylval->c = yyextra->copyString(kj::StringPtr(yytext, yyleng)).cStr(); character += yyleng; return Numeric; }
+<INITIAL,NO_IDENTIFIERS>{M}{O}{N}{D}{A}{Y}  { yylval->l = 1; return DayOfWeek; }
+<INITIAL,NO_IDENTIFIERS>{M}{O}{N}  { yylval->l = 1; return DayOfWeek; }
+<INITIAL,NO_IDENTIFIERS>{T}{U}{E}{S}{D}{A}{Y}  { yylval->l = 2; return DayOfWeek; }
+<INITIAL,NO_IDENTIFIERS>{T}{U}{E}  { yylval->l = 2; return DayOfWeek; }
+<INITIAL,NO_IDENTIFIERS>{W}{E}{D}{N}{E}{S}{D}{A}{Y}  { yylval->l = 3; return DayOfWeek; }
+<INITIAL,NO_IDENTIFIERS>{W}{E}{D}  { yylval->l = 3; return DayOfWeek; }
+<INITIAL,NO_IDENTIFIERS>{T}{H}{U}{R}{S}{D}{A}{Y}  { yylval->l = 4; return DayOfWeek; }
+<INITIAL,NO_IDENTIFIERS>{T}{H}{U}  { yylval->l = 4; return DayOfWeek; }
+<INITIAL,NO_IDENTIFIERS>{F}{R}{I}{D}{A}{Y}  { yylval->l = 5; return DayOfWeek; }
+<INITIAL,NO_IDENTIFIERS>{F}{R}{I}  { yylval->l = 5; return DayOfWeek; }
+<INITIAL,NO_IDENTIFIERS>{S}{A}{T}{U}{R}{D}{A}{Y}  { yylval->l = 6; return DayOfWeek; }
+<INITIAL,NO_IDENTIFIERS>{S}{A}{T}  { yylval->l = 6; return DayOfWeek; }
+<INITIAL,NO_IDENTIFIERS>{S}{U}{N}{D}{A}{Y}  { yylval->l = 0; return DayOfWeek; }
+<INITIAL,NO_IDENTIFIERS>{S}{U}{N}  { yylval->l = 0; return DayOfWeek; }
 
-\' { return stringliteral (yyscanner); }
-\" { return stringliteral (yyscanner); }
+<INITIAL,NO_IDENTIFIERS>0x[A-Fa-f0-9]*      { yylval->l = strtol (yytext + 2, 0, 16); character += yyleng; return Integer; }
+<INITIAL,NO_IDENTIFIERS>[1-9][0-9]*-[01][0-9]-[0123][0-9] { yylval->c = yyextra->copyString(kj::StringPtr(yytext, yyleng)).cStr(); character += yyleng; return Date; }
+<INITIAL,NO_IDENTIFIERS>-?[0-9]+            { yylval->l = strtol (yytext, 0, 0); character += yyleng; return Integer; }
+<INITIAL,NO_IDENTIFIERS>-?[0-9]+\.[0-9]+    { yylval->c = yyextra->copyString(kj::StringPtr(yytext, yyleng)).cStr(); character += yyleng; return Numeric; }
+
+<INITIAL,NO_IDENTIFIERS>\' { return stringliteral (yyscanner); }
+<INITIAL,NO_IDENTIFIERS>\" { return stringliteral (yyscanner); }
 
 [A-Za-z_#.:%@/][A-Za-z0-9_.:%@/-]* { yylval->c = yyextra->copyString(kj::StringPtr(yytext, yyleng)).cStr(); character += yyleng; return Identifier; }
-[ \t\r\026]+                  { character += yyleng; }
+<INITIAL,NO_IDENTIFIERS>[ \t\r\026]+                  { character += yyleng; }
 
-\n                       { ++line; character = 1; }
+<INITIAL,NO_IDENTIFIERS>\n                       { ++line; character = 1; }
+<INITIAL,NO_IDENTIFIERS>[\,\]\)]   { return *yytext; }
 \357\273\277             { return UTF8BOM; }
 .                        { ++character; return *yytext; }
 <<EOF>>                  { return 0; }
@@ -176,6 +194,19 @@ static int stringliteral(yyscan_t yyscanner) {
 
 namespace cantera {
 namespace table {
+
+
+void rvalue(void *_scanner)
+{
+  auto *yyg = static_cast<struct yyguts_t*>(_scanner);
+  BEGIN(NO_IDENTIFIERS);
+}
+
+void normal(void *_scanner)
+{
+  auto *yyg = static_cast<struct yyguts_t*>(_scanner);
+  BEGIN(INITIAL);
+}
 
 void CA_parse_script(QueryParseContext* context, FILE* input) {
   YY_BUFFER_STATE buf;

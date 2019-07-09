@@ -7,8 +7,17 @@
 %code requires
 {
 #include "src/query.h"
-
+#include <iostream>
 using namespace cantera::table;
+
+namespace cantera {
+namespace table {
+
+void rvalue(void*);
+void normal(void*);
+
+}}
+
 }
 
 %parse-param { QueryParseContext *context }
@@ -70,9 +79,11 @@ yyerror (YYLTYPE *loc, QueryParseContext *context, const char *message);
 %token Duration
 %token Identifier
 %token Integer
+%token DayOfWeek
 %token Numeric
 %token StringLiteral
 
+%type<l> DayOfWeek
 %type<d> number
 
 %type<c> StringLiteral Identifier Date Numeric
@@ -202,6 +213,31 @@ number
         const time_t t = time(nullptr) + $1;
         $$ = t / 86400;
       }
+    | DayOfWeek Duration
+      {
+        const time_t today = time(nullptr);
+        tm t;
+        gmtime_r(&today, &t);
+        int day = t.tm_wday;
+        t.tm_min=0;
+        t.tm_hour=0;
+        long shifted = timegm(&t) / 86400
+          - ((7 - $1 + day) % 7) - 7 + $2 / 86400;
+        $$ = shifted;
+      }
+    | DayOfWeek
+      {
+        // get the previous 'DayOfWeek' who is > 7 days away from today
+        const time_t today = time(nullptr);
+        tm t;
+        gmtime_r(&today, &t);
+        int day = t.tm_wday;
+        t.tm_min=0;
+        t.tm_hour=0;
+        long shifted = timegm(&t) / 86400
+          - ((7 - $1 + day) % 7) - 7;
+        $$ = shifted;
+      }
     | Integer { $$ = $1; }
     | Numeric { $$ = strtod($1, NULL); }
     | Date
@@ -282,54 +318,59 @@ subQuery
         q->lhs = $2;
         $$ = q;
       }
-    | subQuery '=' number
+    | subQuery '=' { rvalue(scanner); } number
       {
         struct Query *q;
         ALLOC(q);
         q->type = kQueryBinaryOperator;
         q->operator_type = kOperatorEQ;
         q->lhs = $1;
-        q->value = $3;
+        q->value = $4;
+        normal(scanner);
         $$ = q;
       }
-    | subQuery '>' number
+    | subQuery '>' { rvalue(scanner); } number
       {
         struct Query *q;
         ALLOC(q);
         q->type = kQueryBinaryOperator;
         q->operator_type = kOperatorGT;
         q->lhs = $1;
-        q->value = $3;
+        q->value = $4;
+        normal(scanner);
         $$ = q;
       }
-    | subQuery '>' '=' number
+    | subQuery '>' '=' { rvalue(scanner); } number
       {
         struct Query *q;
         ALLOC(q);
         q->type = kQueryBinaryOperator;
         q->operator_type = kOperatorGE;
         q->lhs = $1;
-        q->value = $4;
+        q->value = $5;
+        normal(scanner);
         $$ = q;
       }
-    | subQuery '<' number
+    | subQuery '<' { rvalue(scanner); } number
       {
         struct Query *q;
         ALLOC(q);
         q->type = kQueryBinaryOperator;
         q->operator_type = kOperatorLT;
         q->lhs = $1;
-        q->value = $3;
+        q->value = $4;
+        normal(scanner);
         $$ = q;
       }
-    | subQuery '<' '=' number
+    | subQuery '<' '=' { rvalue(scanner); } number
       {
         struct Query *q;
         ALLOC(q);
         q->type = kQueryBinaryOperator;
         q->operator_type = kOperatorLE;
         q->lhs = $1;
-        q->value = $4;
+        q->value = $5;
+        normal(scanner);
         $$ = q;
       }
     | subQuery '>' subQuery
@@ -340,6 +381,7 @@ subQuery
         q->operator_type = kOperatorGT;
         q->lhs = $1;
         q->rhs = $3;
+        normal(scanner);
         $$ = q;
       }
     | subQuery '<' subQuery
@@ -352,15 +394,15 @@ subQuery
         q->rhs = $3;
         $$ = q;
       }
-    | subQuery '[' number ',' number ']'
+    | subQuery '[' { rvalue(scanner); } number ',' number { normal(scanner); } ']'
       {
         struct Query *q;
         ALLOC(q);
         q->type = kQueryBinaryOperator;
         q->operator_type = kOperatorInRange;
         q->lhs = $1;
-        q->value = $3;
-        q->value2 = $5;
+        q->value = $4;
+        q->value2 = $6;
         $$ = q;
       }
     | subQueryList ORDER_BY subQuery

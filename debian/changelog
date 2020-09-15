@@ -1,3 +1,8 @@
+ca-table (1.5.5-5ev3) unstable; urgency=medium
+
+  * escape CSV
+
+ -- Charles Samuels <kalle@eventures.vc>  Mon, 15 Sep 2020 09:57:11 -0700
 ca-table (1.5.5-5ev2) unstable; urgency=medium
 
   * debian buster

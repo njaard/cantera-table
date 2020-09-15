@@ -80,9 +80,9 @@ void Select(Schema* schema, const struct select_statement& select) {
     if (key.find('"') != std::string::npos) {
         printf("\"\"%.*s\"\"", static_cast<int>(key.size()), key.data());
     } else if (key.find(',') != std::string::npos) {
-        printf("%.*s", static_cast<int>(key.size()), key.data());
-    } else {
         printf("\"%.*s\"", static_cast<int>(key.size()), key.data());
+    } else {
+        printf("%.*s", static_cast<int>(key.size()), key.data());
     }
 
     for (const auto v : values[i]) {

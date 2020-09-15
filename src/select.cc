@@ -77,7 +77,13 @@ void Select(Schema* schema, const struct select_statement& select) {
     KJ_REQUIRE(
         summary_tables[summary_table_idx].second->ReadRow(key, data));
 
-    printf("%.*s", static_cast<int>(key.size()), key.data());
+    if (key.find('"') != std::string::npos) {
+        printf("\"\"%.*s\"\"", static_cast<int>(key.size()), key.data());
+    } else if (key.find(',') != std::string::npos) {
+        printf("%.*s", static_cast<int>(key.size()), key.data());
+    } else {
+        printf("\"%.*s\"", static_cast<int>(key.size()), key.data());
+    }
 
     for (const auto v : values[i]) {
       if (std::isnan(v)) {
